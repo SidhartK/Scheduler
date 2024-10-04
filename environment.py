@@ -1,3 +1,20 @@
+"""
+GPT Spec:
+Please code a basic task planning environment. 
+This environment should be initialized with a task dependency graph structure as well as some information about the resources available to complete tasks. 
+Then the environment should progress via a time variable constantly ticking upwards. 
+At each timestep, it is possible that some number of resources (possibly none) are freed because they have finished the tasks they were working on. 
+When this occurs, the environment should update the task dependency graph to indicate that these tasks are finished. 
+Additionally at each time step, every free resource should be assigned a new task to work on. 
+To do this, an external task assignment agent should be queried. 
+The external task assignment agent should take in the type of the resource available as well as the current state of the task dependency graph as input. 
+The external task assignment agent will be provided to the environment upon initialization.
+
+Write a Python class to implement the environment based on the spec given above. 
+Please include TODOs in the code wherever the implementation of the function has ambiguity. 
+Do not make unnecessary assumptions in your implementation and instead include descriptive TODOs for an expert to fill in wherever possible. 
+"""
+
 import networkx as nx
 import time
 
