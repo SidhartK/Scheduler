@@ -1,5 +1,0 @@
-networkx>=2.5
-torch
-torch-geometric
-matplotlib
-numpy==1.26.4
