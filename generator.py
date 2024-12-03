@@ -5,11 +5,26 @@ import matplotlib.pyplot as plt
 
 def generate_dag(num_nodes, edge_prob):
     G = nx.DiGraph()
-    G.add_nodes_from(range(num_nodes))
-    for i in range(num_nodes):
+    G.add_nodes_from(range(num_nodes+2))
+    for i in range(1,num_nodes+1):
         for j in range(i + 1, num_nodes):
             if np.random.rand() < edge_prob:
                 G.add_edge(i, j)
+
+    # Add a new head node (num_nodes) that connects to all current head nodes
+    head_node = 0
+    G.add_node(head_node)
+    for node in range(1,num_nodes+1):
+        if G.in_degree(node) == 0:  # Check if the node has no parents
+            G.add_edge(head_node, node)
+
+    # Add a new tail node (num_nodes + 1) that connects to all current leaf nodes
+    tail_node = num_nodes + 1
+    G.add_node(tail_node)
+    for node in range(1,num_nodes+1):
+        if G.out_degree(node) == 0:  # Check if the node has no children
+            G.add_edge(node, tail_node)
+
     return G
 
 def assign_errors(G):
@@ -58,12 +73,16 @@ def visualize_graph(graph_id, node_df, edge_df):
     for _, edge in edges.iterrows():
         G.add_edge(edge['source_node'], edge['target_node'], weight=edge['weight'])
     
-    # Draw the graph
-    pos = nx.spring_layout(G)  # Layout for visualization
+    # Add layer attribute to nodes based on topological generations
+    layers = {node: i for i, layer in enumerate(nx.topological_generations(G)) for node in layer}
+    nx.set_node_attributes(G, layers, 'layer')
+
+    # Draw the graph with multipartite layout
+    pos = nx.multipartite_layout(G, subset_key='layer')  # Use multipartite layout for visualization
     plt.figure(figsize=(10, 8))
     nx.draw(G, pos, with_labels=True, node_color='lightblue', edge_color='gray', node_size=500, font_size=10, font_weight='bold')
-    labels = nx.get_edge_attributes(G, 'weight')
-    nx.draw_networkx_edge_labels(G, pos, edge_labels=labels)
+    #labels = nx.get_edge_attributes(G, 'weight')
+    #nx.draw_networkx_edge_labels(G, pos, edge_labels=labels)
     plt.title(f"Graph ID: {graph_id}")
     plt.show()
 
