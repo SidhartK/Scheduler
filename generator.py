@@ -40,7 +40,11 @@ def generate_dataset(num_graphs, num_nodes, edge_prob):
     node_data = []
     edge_data = []
     for graph_id in range(num_graphs):
-        G = generate_dag(num_nodes, edge_prob)
+        # Randomize num_nodes and edge_prob using a normal distribution
+        randomized_num_nodes = int(np.random.normal(num_nodes, 1))  # Adjust the standard deviation as needed
+        randomized_edge_prob = np.clip(np.random.normal(edge_prob, 0.1), 0, 1)  # Ensure edge_prob is between 0 and 1
+        
+        G = generate_dag(randomized_num_nodes, randomized_edge_prob)
         for u, v in G.edges:
             G[u][v]['weight'] = np.random.uniform(0.1, 1)
         errors = assign_errors(G)
