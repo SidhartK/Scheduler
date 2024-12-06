@@ -48,10 +48,11 @@ def assign_labels(G):
     
     # Aggregate features for each node based on the incoming edges
     for node in nx.topological_sort(G):
-        if G.in_degree(node) != 0:
+        import pdb; pdb.set_trace()
+        if G.in_degree(node) == 0:
             G.nodes[node]['y'] = G.nodes[node]['value']
         else:
-            G.nodes[node]['y'] = sum(G[u][v]['weight'] * G.nodes[v]['y'] for u, v in G.in_edges(node))
+            G.nodes[node]['y'] = sum(G[u][v]['weight'] * G.nodes[u]['y'] for u, v in G.in_edges(node))
     
 
 # def assign_errors(G):

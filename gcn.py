@@ -97,15 +97,17 @@ for epoch in range(num_epochs):
     losses = []
     for data in train_loader:
         # optimizer.zero_grad()
-        data_embeddings = model(data)
+        # data_embeddings = model(data)
+        data_embeddings = data.x[:,1:]
+        import pdb; pdb.set_trace()
         edge_weights = calculate_edge_weights(data_embeddings, data.edge_index)
         predictions = calculate_aggregate(data.x[:,0], data.edge_index, edge_weights)
 
         loss = criterion(predictions, data.y)
-        losses.append(loss.item())
+        losses.append(data.x.size(0) * loss.item())
         # loss.backward()
         # optimizer.step()
     
     # if (epoch+1) % 100 == 0:
-    print(f"Epoch {epoch+1}, Loss: {np.mean(losses)}")
+    print(f"Epoch {epoch+1}, Loss: {np.sum(losses)}")
     
