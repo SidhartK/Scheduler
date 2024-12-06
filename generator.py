@@ -7,27 +7,20 @@ from graph_dataset import GraphDataset
 
 
 def generate_dag(num_nodes, edge_prob, seed=None):
+    print(num_nodes)
     if seed is not None:
         np.random.seed(seed)
 
     G = nx.DiGraph() 
-    G.add_nodes_from(range(num_nodes+2))
-    for i in range(1,num_nodes+1):
+    G.add_nodes_from(range(num_nodes+1))
+    for i in range(0, num_nodes):
         for j in range(i + 1, num_nodes):
             if np.random.rand() < edge_prob:
                 G.add_edge(i, j)
-
-    # Add a new head node (num_nodes) that connects to all current head nodes
-    head_node = 0
-    G.add_node(head_node)
-    for node in range(1,num_nodes+1):
-        if G.in_degree(node) == 0:  # Check if the node has no parents
-            G.add_edge(head_node, node)
-
     # Add a new tail node (num_nodes + 1) that connects to all current leaf nodes
-    tail_node = num_nodes + 1
+    tail_node = num_nodes
     G.add_node(tail_node)
-    for node in range(1,num_nodes+1):
+    for node in range(0,num_nodes):
         if G.out_degree(node) == 0:  # Check if the node has no children
             G.add_edge(node, tail_node)
 
@@ -36,10 +29,13 @@ def generate_dag(num_nodes, edge_prob, seed=None):
 def assign_labels(G):
     # Generate random feature vectors for each node
     feature_vectors = {node: np.random.randn(10) for node in G.nodes}  # 10-dimensional feature vectors
+    feature_vectors = {node: vec / np.linalg.norm(vec) for node, vec in feature_vectors.items()}
     nx.set_node_attributes(G, feature_vectors, 'features')
 
     # Generate random compute values for each node
     values = {node: np.random.uniform(0.1, 1) for node in G.nodes}
+    values[G.number_of_nodes() - 1] = 0
+    print(values)
     nx.set_node_attributes(G, values, 'value')
 
     # Compute edge weights as the dot product between the corresponding features
@@ -48,6 +44,7 @@ def assign_labels(G):
     
     # Aggregate features for each node based on the incoming edges
     for node in nx.topological_sort(G):
+        #import pdb; pdb.set_trace()
         if G.in_degree(node) == 0:
             G.nodes[node]['y'] = G.nodes[node]['value']
         else:
@@ -73,6 +70,7 @@ def generate_dataset(num_graphs, num_nodes_minmax, edge_prob_minmax):
         
         G = generate_dag(num_nodes, edge_prob)
         assign_labels(G)
+        #visualize_graph(G)
 
         graphs.append(G)
     
@@ -93,18 +91,23 @@ def visualize_graph(G):
     layers = {node: i for i, layer in enumerate(nx.topological_generations(G)) for node in layer}
     nx.set_node_attributes(G, layers, 'layer')
 
+    # Prepare labels using the 'y' values and 'value' properties from the nodes
+    labels = {node: f"y: {round(G.nodes[node]['y'], 2)}, value: {round(G.nodes[node]['value'], 2)}" for node in G.nodes}  # Round to 2 decimal places
+
     # Draw the graph with multipartite layout
     pos = nx.multipartite_layout(G, subset_key='layer')  # Use multipartite layout for visualization
     plt.figure(figsize=(10, 8))
-    nx.draw(G, pos, with_labels=True, node_color='lightblue', edge_color='gray', node_size=500, font_size=10, font_weight='bold')
-    #labels = nx.get_edge_attributes(G, 'weight')
-    #nx.draw_networkx_edge_labels(G, pos, edge_labels=labels)
+    nx.draw(G, pos, with_labels=True, node_color='lightblue', edge_color='gray', node_size=500, font_size=10, font_weight='bold', labels=labels)
+    
+    # Display edge weights
+    labels = {edge: round(weight, 2) for edge, weight in nx.get_edge_attributes(G, 'weight').items()}  # Get edge weights and round to 2 decimal places
+    nx.draw_networkx_edge_labels(G, pos, edge_labels=labels)  # Draw edge labels
     plt.title(f"Graph Visualization")
     plt.show()
 
 
 if __name__ == '__main__':
-    graphs = generate_dataset(100, (5, 15), (0.1, 0.3))
+    graphs = generate_dataset(100, (2, 5), (0.1, 0.3))
     dataset = GraphDataset(graphs)
 
     with open("graphs.pkl", "wb") as f:
