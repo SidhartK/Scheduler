@@ -6,6 +6,7 @@ import torch.nn.functional as F
 from torch_geometric.nn import GCNConv
 from torch_geometric.data import Data, DataLoader
 from torch_geometric.utils import add_self_loops
+from torch_scatter import scatter_add
 
 class GCNErrorPrediction(nn.Module):
     def __init__(self, input_dim, hidden_dim, output_dim):
@@ -25,8 +26,8 @@ class GCNErrorPrediction(nn.Module):
         edge_index, _ = add_self_loops(edge_index, num_nodes=x.size(0))
 
         # Apply GCN layers to update node features
-        x = F.relu(self.conv1(x, edge_index))
-        x = F.relu(self.conv2(x, edge_index))
+        # x = F.relu(self.conv1(x, edge_index))
+        # x = F.relu(self.conv2(x, edge_index))
 
         # Compute predicted errors for each node
         # predicted_errors = self.linear(x)
@@ -43,16 +44,41 @@ def calculate_edge_weights(node_embeddings, edge_index):
         edge_weights.append(edge_weight)
     return torch.stack(edge_weights)
 
-def calculate_aggregate(x, edge_index, edge_weights):
-    # Aggregate features for each node based on the incoming edges
-    aggregated_features = torch.zeros_like(x)
+# def calculate_aggregate(x, edge_index, edge_weights):
+#     # Aggregate features for each node based on the incoming edges
+#     aggregated_features = x.clone()
     
-    # Iterate over each edge and update the target node's features
-    for edge, weight in zip(edge_index.t(), edge_weights):
-        source, target = edge[0], edge[1]
-        aggregated_features[target] += weight * aggregated_features[source]
+#     # Iterate over each edge and update the target node's features
+#     for edge, weight in zip(edge_index.t(), edge_weights):
+#         source, target = edge[0], edge[1]
+#         aggregated_features[target] = aggregated_features[target] + (weight * aggregated_features[source])
 
-    return aggregated_features + x
+#     return aggregated_features
+
+
+def calculate_aggregate(x, edge_index, edge_weights):
+    """
+    Aggregate node features based on incoming edges with edge weights.
+
+    Args:
+        x (torch.Tensor): Node feature matrix of shape [num_nodes, num_features].
+        edge_index (torch.LongTensor): Edge indices of shape [2, num_edges].
+        edge_weights (torch.Tensor): Edge weights of shape [num_edges].
+
+    Returns:
+        torch.Tensor: Aggregated node features of shape [num_nodes, num_features].
+    """
+    source_nodes = edge_index[0]  # Source nodes of edges
+    target_nodes = edge_index[1]  # Target nodes of edges
+
+    # Multiply source node features by edge weights
+    weighted_source = x[source_nodes] * edge_weights.unsqueeze(-1)  # Shape: [num_edges, num_features]
+    # Aggregate using scatter_add
+    aggregated = scatter_add(weighted_source, target_nodes, dim=0, dim_size=x.size(0)).sum(dim=1)
+    # Optionally, add the original node features (if needed)
+    aggregated += x
+    return aggregated
+
 
 with open("graphs.pkl", "rb") as f:
     graphs = pickle.load(f)
@@ -64,7 +90,7 @@ output_dim = 10
 model = GCNErrorPrediction(input_dim, hidden_dim, output_dim)
 
 # Create a dataloader for graphs
-train_loader = DataLoader(graphs, batch_size=32, shuffle=True)
+train_loader = DataLoader(graphs, batch_size=2, shuffle=True)
 
 optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
 criterion = nn.MSELoss()
