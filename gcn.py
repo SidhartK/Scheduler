@@ -25,8 +25,8 @@ class GCNErrorPrediction(nn.Module):
         edge_index, _ = add_self_loops(edge_index, num_nodes=x.size(0))
 
         # Apply GCN layers to update node features
-        # x = F.relu(self.conv1(x, edge_index))
-        # x = F.relu(self.conv2(x, edge_index))
+        x = F.relu(self.conv1(x, edge_index))
+        x = F.relu(self.conv2(x, edge_index))
 
         # Compute predicted errors for each node
         # predicted_errors = self.linear(x)
