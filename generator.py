@@ -3,8 +3,11 @@ import networkx as nx
 import pandas as pd
 import matplotlib.pyplot as plt
 
-def generate_dag(num_nodes, edge_prob):
-    G = nx.DiGraph()
+def generate_dag(num_nodes, edge_prob, seed=None):
+    if seed is not None:
+        np.random.seed(seed)
+
+    G = nx.DiGraph() 
     G.add_nodes_from(range(num_nodes+2))
     for i in range(1,num_nodes+1):
         for j in range(i + 1, num_nodes):
@@ -27,10 +30,32 @@ def generate_dag(num_nodes, edge_prob):
 
     return G
 
+def assign_labels(G):
+    # Generate random feature vectors for each node
+    feature_vectors = {node: np.random.randn(10) for node in G.nodes}  # 10-dimensional feature vectors
+    nx.set_node_attributes(G, feature_vectors, 'features')
+
+    # Generate random compute values for each node
+    values = {node: np.random.uniform(0.1, 1) for node in G.nodes}
+    nx.set_node_attributes(G, values, 'value')
+
+    # Compute edge weights as the dot product between the corresponding features
+    for u, v in G.edges:
+        G[u][v]['weight'] = np.dot(G.nodes[u]['features'], G.nodes[v]['features'])
+    
+    # Aggregate features for each node based on the incoming edges
+    for node in nx.topological_sort(G):
+        if G.in_degree(node) == 0:
+            G.nodes[node]['aggregate'] = G.nodes[node]['value']
+        else:
+            G.nodes[node]['aggregate'] = sum(G[u][v]['weight'] * G.nodes[v]['aggregate'] for u, v in G.in_edges(node))
+    
+
 def assign_errors(G):
     errors = {}
     for node in nx.topological_sort(G):
-        intrinsic_error = np.random.normal(0, 1)
+        # intrinsic_error = np.random.normal(0, 1)
+        intrinsic_error = np.random.normal((G.nodes[node]["_C0"] / G.nodes[node]["compute"]) ** G.nodes[node]["_alpha"], 0.25)
         parent_error = sum(G[u][v]['weight'] * errors[u] for u, v in G.in_edges(node))
         noise = np.random.normal(0, 0.1)
         errors[node] = intrinsic_error + parent_error + noise
@@ -90,13 +115,17 @@ def visualize_graph(graph_id, node_df, edge_df):
     plt.title(f"Graph ID: {graph_id}")
     plt.show()
 
-# Generate dataset
-node_dataset, edge_dataset = generate_dataset(100, 10, 0.3)
-node_dataset.to_csv("dag_node_dataset.csv", index=False)
-edge_dataset.to_csv("dag_edge_dataset.csv", index=False)
 
-# Example usage to visualize a graph
-visualize_graph(0, node_dataset, edge_dataset)
-visualize_graph(1, node_dataset, edge_dataset)
-visualize_graph(2, node_dataset, edge_dataset)
-visualize_graph(3, node_dataset, edge_dataset)
+if __name__ == '__main__':
+    dag = generate_dag(10, 0.3)
+    assign_labels(dag)
+    # # Generate dataset
+    # node_dataset, edge_dataset = generate_dataset(100, 10, 0.3)
+    # node_dataset.to_csv("dag_node_dataset.csv", index=False)
+    # edge_dataset.to_csv("dag_edge_dataset.csv", index=False)
+
+    # # Example usage to visualize a graph
+    # visualize_graph(0, node_dataset, edge_dataset)
+    # visualize_graph(1, node_dataset, edge_dataset)
+    # visualize_graph(2, node_dataset, edge_dataset)
+    # visualize_graph(3, node_dataset, edge_dataset)
