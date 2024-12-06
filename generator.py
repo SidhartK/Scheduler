@@ -104,7 +104,7 @@ def visualize_graph(G):
 
 
 if __name__ == '__main__':
-    graphs = generate_dataset(100, (2, 5), (0.1, 0.3))
+    graphs = generate_dataset(100, (5, 15), (0.1, 0.3))
     dataset = GraphDataset(graphs)
 
     with open("graphs.pkl", "wb") as f:
