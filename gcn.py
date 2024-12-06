@@ -33,22 +33,24 @@ class GCNErrorPrediction(nn.Module):
 
         return x
 
-def calculate_edge_weights(x, edge_index):
+def calculate_edge_weights(node_embeddings, edge_index):
     # Calculate edge weights as the dot product of parent and child node features
     edge_weights = []
     for edge in edge_index.t():
         source, target = edge[0], edge[1]
         # Compute the dot product between the feature vectors of the parent and child node
-        edge_weight = torch.dot(x[source], x[target])
+        edge_weight = torch.dot(node_embeddings[source], node_embeddings[target])
         edge_weights.append(edge_weight)
     return torch.stack(edge_weights)
 
 def calculate_aggregate(x, edge_index, edge_weights):
     # Aggregate features for each node based on the incoming edges
     aggregated_features = x.clone()
-    for edge, edge_weight in zip(edge_index.t(), edge_weights):
-        source, target = edge[0].item(), edge[1].item()
-        aggregated_features[target] += edge_weight * x[source] 
+    
+    for i in range(x.size(0)):
+        incoming_edges = edge_index[1] == i
+        incoming_sources = edge_index[0, incoming_edges]
+        aggregated_features[i] = torch.sum(edge_weights[incoming_edges].unsqueeze(1) * x[incoming_sources], dim=0)
     return aggregated_features
 
 
@@ -96,18 +98,18 @@ num_epochs = 100
 for epoch in range(num_epochs):
     losses = []
     for data in train_loader:
-        # optimizer.zero_grad()
-        # data_embeddings = model(data)
-        data_embeddings = data.x[:,1:]
-        import pdb; pdb.set_trace()
+        optimizer.zero_grad()
+        data_embeddings = model(data)
+        # data_embeddings = data.x[:,1:]
+        # import pdb; pdb.set_trace()
         edge_weights = calculate_edge_weights(data_embeddings, data.edge_index)
         predictions = calculate_aggregate(data.x[:,0], data.edge_index, edge_weights)
 
         loss = criterion(predictions, data.y)
-        losses.append(data.x.size(0) * loss.item())
-        # loss.backward()
-        # optimizer.step()
+        losses.append(loss.item())
+        loss.backward()
+        optimizer.step()
     
     # if (epoch+1) % 100 == 0:
-    print(f"Epoch {epoch+1}, Loss: {np.sum(losses)}")
+    print(f"Epoch {epoch+1}, Loss: {np.mean(losses)}")
     
