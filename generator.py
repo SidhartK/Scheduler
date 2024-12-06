@@ -34,8 +34,6 @@ def assign_labels(G):
 
     # Generate random compute values for each node
     values = {node: np.random.uniform(0.1, 1) for node in G.nodes}
-    values[G.number_of_nodes() - 1] = 0
-    print(values)
     nx.set_node_attributes(G, values, 'value')
 
     # Compute edge weights as the dot product between the corresponding features
