@@ -45,37 +45,14 @@ def calculate_edge_weights(node_embeddings, edge_index):
 
 def calculate_aggregate(x, edge_index, edge_weights):
     # Aggregate features for each node based on the incoming edges
-    aggregated_features = x.clone()
+    aggregated_features = torch.zeros_like(x)
     
-    for i in range(x.size(0)):
-        incoming_edges = edge_index[1] == i
-        incoming_sources = edge_index[0, incoming_edges]
-        aggregated_features[i] = torch.sum(edge_weights[incoming_edges].unsqueeze(1) * x[incoming_sources], dim=0)
-    return aggregated_features
+    # Iterate over each edge and update the target node's features
+    for edge, weight in zip(edge_index.t(), edge_weights):
+        source, target = edge[0], edge[1]
+        aggregated_features[target] += weight * aggregated_features[source]
 
-
-# def accumulate_errors(x, edge_index, edge_weights, errors):
-    # Compute the total error for each node based on the incoming edges
-    
-
-# # Create a synthetic example of a DAG for demonstration
-# num_nodes = 5
-# node_features = torch.randn((num_nodes, 2))  # Random features
-
-# # Example edges (DAG)
-# edges = torch.tensor([
-#     [0, 1],
-#     [0, 2],
-#     [1, 3],
-#     [2, 3],
-#     [3, 4]
-# ], dtype=torch.long).t().contiguous()
-
-# # Actual total error for the graph
-# actual_error = torch.tensor([1.5], dtype=torch.float)
-
-# # Construct PyTorch Geometric Data object
-# data = Data(x=node_features, edge_index=edges)
+    return aggregated_features + x
 
 with open("graphs.pkl", "rb") as f:
     graphs = pickle.load(f)
@@ -84,7 +61,6 @@ with open("graphs.pkl", "rb") as f:
 input_dim = 10  # Number of features per node
 hidden_dim = 16
 output_dim = 10
-# import pdb; pdb.set_trace()
 model = GCNErrorPrediction(input_dim, hidden_dim, output_dim)
 
 # Create a dataloader for graphs
@@ -104,7 +80,6 @@ for epoch in range(num_epochs):
         # import pdb; pdb.set_trace()
         edge_weights = calculate_edge_weights(data_embeddings, data.edge_index)
         predictions = calculate_aggregate(data.x[:,0], data.edge_index, edge_weights)
-
         loss = criterion(predictions, data.y)
         losses.append(loss.item())
         loss.backward()

@@ -7,7 +7,6 @@ from graph_dataset import GraphDataset
 
 
 def generate_dag(num_nodes, edge_prob, seed=None):
-    print(num_nodes)
     if seed is not None:
         np.random.seed(seed)
 
