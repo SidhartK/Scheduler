@@ -1,37 +1,46 @@
+import os
 import pickle
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.nn import GCNConv
-from torch_geometric.data import DataLoader
+from torch_geometric.loader import DataLoader
 from torch_geometric.utils import add_self_loops
-from torch_scatter import scatter_add
+# from torch_scatter import scatter_add
+from tqdm import trange
 from rec_aggr_layer import RecursiveAggregationLayer
 
-class GCNErrorPrediction(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim):
-        super(GCNErrorPrediction, self).__init__()
+class RAL(nn.Module):
+    def __init__(self, input_dim, output_dim):
+        super(RAL, self).__init__()
 
         # GCN layers to learn node features
-        self.conv1 = GCNConv(input_dim, hidden_dim)
-        self.conv2 = GCNConv(hidden_dim, output_dim)
+        # self.conv1 = GCNConv(input_dim, hidden_dim)
+        self.fc = nn.Linear(input_dim, output_dim)
+        # self.fc = nn.Sequential(
+        #     nn.Linear(input_dim, 128),
+        #     nn.ReLU(),
+        #     nn.Linear(128, output_dim),
+        # )
+        # self.conv2 = GCNConv(hidden_dim, output_dim)
         self.rec_aggr = RecursiveAggregationLayer()
 
         # Final prediction layer to compute total error
         # self.linear = nn.Linear(output_dim, 1)
 
     def forward(self, data):
-        x, edge_index = data.x[:,1:], data.edge_index
+        x = data.x[:,1:]
 
         # Add self loops to ensure each node gets information from itself
-        edge_index, _ = add_self_loops(edge_index, num_nodes=x.size(0))
+        # edge_index, _ = add_self_loops(edge_index, num_nodes=x.size(0))
 
         # Apply GCN layers to update node features
-        x = F.relu(self.conv1(x, edge_index))
-        node_embeddings = F.relu(self.conv2(x, edge_index))
+        x = self.fc(x)
+        # x = F.relu(self.conv1(x, edge_index))
+        # x = F.relu(self.conv2(x, edge_index))
 
-        edge_weights = self._calculate_edge_weights(node_embeddings, data.edge_index)
+        edge_weights = self._calculate_edge_weights(x, data.edge_index)
 
         output = self.rec_aggr(data.x[:,0], data.edge_index, edge_weights)
         # Compute predicted errors for each node
@@ -48,6 +57,27 @@ class GCNErrorPrediction(nn.Module):
             edge_weight = torch.dot(node_embeddings[source], node_embeddings[target])
             edge_weights.append(edge_weight)
         return torch.stack(edge_weights)
+    
+
+class GCNBaseline(nn.Module):
+    def __init__ (self, input_dim, hidden_dim, output_dim):
+        super(GCNBaseline, self).__init__()
+
+        self.convs1 = GCNConv(input_dim, hidden_dim)
+        self.convs2 = GCNConv(hidden_dim, hidden_dim)
+        self.convs3 = GCNConv(hidden_dim, output_dim)
+
+    def forward(self, data):
+        x, edge_index = data.x[:,1:], data.edge_index
+        edge_index, _ = add_self_loops(edge_index, num_nodes=x.size(0))
+        
+        x = self.convs1(x, edge_index)
+        x = F.relu(x)
+        x = self.convs2(x, edge_index)
+        x = F.relu(x)
+        x = self.convs3(x, edge_index)
+        return x
+
 
 # def calculate_aggregate(x, edge_index, edge_weights):
 #     # Aggregate features for each node based on the incoming edges
@@ -85,36 +115,83 @@ class GCNErrorPrediction(nn.Module):
 #     return aggregated
 
 
-with open("graphs.pkl", "rb") as f:
-    graphs = pickle.load(f)
+# with open("graphs.pkl", "rb") as f:
+#     graphs = pickle.load(f)
 
 # Model, optimizer, and criterion
-input_dim = 10  # Number of features per node
-hidden_dim = 16
-output_dim = 10
-model = GCNErrorPrediction(input_dim, hidden_dim, output_dim)
 
-# Create a dataloader for graphs
-train_loader = DataLoader(graphs, batch_size=2, shuffle=True)
+baseline = GCNBaseline(64, 16, 1)
+model = RAL(64, 16)
 
-optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
-criterion = nn.MSELoss()
+if os.path.exists("baseline.pth"):
+    baseline.load_state_dict(torch.load("baseline.pth"))
+if os.path.exists("model.pth"):
+    model.load_state_dict(torch.load("model.pth"))
 
-# Training loop
-num_epochs = 100
-for epoch in range(num_epochs):
-    losses = []
-    for data in train_loader:
-        optimizer.zero_grad()
+if not (os.path.exists("baseline.pth") and os.path.exists("model.pth")):
+    print("Training ...")
+    # Create a dataloader for graphs
+    with open("train.pkl", "rb") as f:
+        graphs = pickle.load(f)
+    train_loader = DataLoader(graphs, batch_size=32, shuffle=True)
+
+    # Training loop
+    baseline_optimizer = torch.optim.Adam(baseline.parameters(), lr=0.01)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+    criterion = nn.MSELoss()
+    num_epochs = 10
+    loop = trange(num_epochs, desc="Training")
+    for epoch in loop:
+        losses = []
+        baseline_losses = []
+        for data in train_loader:
+            optimizer.zero_grad()
+            baseline_optimizer.zero_grad()
+
+            baseline_output = baseline(data)
+            output = model(data)
+
+            baseline_loss = criterion(baseline_output, data.y.unsqueeze(-1))
+            baseline_losses.append(baseline_loss.item())
+            baseline_loss.backward()
+
+            loss = criterion(output, data.y)
+            losses.append(loss.item())
+            loss.backward()
+
+            optimizer.step()
+            baseline_optimizer.step()
+        
+        loop.set_postfix({"Base MSE": np.mean(baseline_losses), "Model MSE": np.mean(losses)})
+
+    # Save the model
+    torch.save(baseline.state_dict(), "baseline.pth")
+    torch.save(model.state_dict(), "model.pth")
+
+with open("test.pkl", "rb") as f:
+    graphs = pickle.load(f)
+
+# import pdb; pdb.set_trace()
+
+test_loader = DataLoader(graphs, batch_size=1000, shuffle=False)
+# Evaluation
+baseline.eval()
+with torch.no_grad():
+    test_losses = []
+    for data in test_loader:
+        output = baseline(data)
+        loss = criterion(output, data.y.unsqueeze(-1))
+        test_losses.append(loss.item())
+    print(f"Baseline Test Loss: {np.mean(test_losses)}")
+
+
+model.eval()
+with torch.no_grad():
+    test_losses = []
+    for data in test_loader:
         output = model(data)
-        # data_embeddings = data.x[:,1:]
-
-        # predictions = calculate_aggregate(data.x[:,0], data.edge_index, edge_weights)
         loss = criterion(output, data.y)
-        losses.append(loss.item())
-        loss.backward()
-        optimizer.step()
-    
-    # if (epoch+1) % 100 == 0:
-    print(f"Epoch {epoch+1}, Loss: {np.mean(losses)}")
-    
+        test_losses.append(loss.item())
+    print(f"Test Loss: {np.mean(test_losses)}")
+
+

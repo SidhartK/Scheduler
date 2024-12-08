@@ -50,7 +50,7 @@ class RecursiveAggregationFunction(Function):
                 output[node] = output[node] + weight * output[parent]
 
         # Save tensors and structures needed for backward
-        ctx.save_for_backward(edge_index, edge_weights, torch.tensor(topo_order))
+        ctx.save_for_backward(edge_weights, torch.tensor(topo_order), output)
         ctx.num_nodes = num_nodes
         ctx.num_edges = num_edges
         ctx.source_nodes = torch.tensor(source_nodes, device=device)
@@ -69,7 +69,7 @@ class RecursiveAggregationFunction(Function):
         Returns:
             Tuple[None, None, torch.Tensor]: Gradients w.r.t. inputs (x, edge_index, edge_weights).
         """
-        edge_index, edge_weights, topo_order = ctx.saved_tensors
+        edge_weights, topo_order, output = ctx.saved_tensors
         num_nodes = ctx.num_nodes
         num_edges = ctx.num_edges
         source_nodes = ctx.source_nodes
@@ -139,11 +139,11 @@ if __name__ == "__main__":
     layer = RecursiveAggregationLayer()
 
     # Forward pass
-    output = layer(x, edge_index, edge_weights)
-    print("Aggregated Output:\n", output)
+    thing = layer(x, edge_index, edge_weights)
+    print("Aggregated Output:\n", thing)
 
     # Example backward pass
     # Let's define a simple loss: sum of all output features
-    loss = output.sum()
+    loss = thing.sum()
     loss.backward()
     print("Gradients on edge_weights:\n", edge_weights.grad)

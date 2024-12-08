@@ -25,9 +25,9 @@ def generate_dag(num_nodes, edge_prob, seed=None):
 
     return G
 
-def assign_labels(G):
+def assign_labels(G, loc=0.0, scale=1.0):
     # Generate random feature vectors for each node
-    feature_vectors = {node: np.random.randn(10) for node in G.nodes}  # 10-dimensional feature vectors
+    feature_vectors = {node: np.random.normal(loc, scale, size=(64,)) for node in G.nodes}  # 10-dimensional feature vectors
     feature_vectors = {node: vec / np.linalg.norm(vec) for node, vec in feature_vectors.items()}
     nx.set_node_attributes(G, feature_vectors, 'features')
 
@@ -58,7 +58,7 @@ def assign_labels(G):
 #         errors[node] = intrinsic_error + parent_error + noise
 #     return errors
 
-def generate_dataset(num_graphs, num_nodes_minmax, edge_prob_minmax):
+def generate_dataset(num_graphs, num_nodes_minmax, edge_prob_minmax, **kwargs):
     graphs = []
     for graph_id in range(num_graphs):
         # Randomize num_nodes and edge_prob using a normal distribution
@@ -66,7 +66,7 @@ def generate_dataset(num_graphs, num_nodes_minmax, edge_prob_minmax):
         edge_prob = np.random.uniform(edge_prob_minmax[0], edge_prob_minmax[1])
         
         G = generate_dag(num_nodes, edge_prob)
-        assign_labels(G)
+        assign_labels(G, **kwargs)
         #visualize_graph(G)
 
         graphs.append(G)
@@ -104,11 +104,18 @@ def visualize_graph(G):
 
 
 if __name__ == '__main__':
-    graphs = generate_dataset(100, (5, 15), (0.1, 0.3))
-    dataset = GraphDataset(graphs)
+    graphs = generate_dataset(10000, (5, 15), (0.1, 0.3), loc=2.0, scale=4.0)
+    test_size = 1000
+    train_dataset = GraphDataset(graphs[:-test_size])
 
-    with open("graphs.pkl", "wb") as f:
-        pickle.dump(dataset, f)
+    # test_graphs = generate_dataset(100, (25, 40), (0.4, 0.8), loc=1.8, scale=1.0)
+    test_dataset = GraphDataset(graphs[-test_size:])
+
+    with open("train.pkl", "wb") as f:
+        pickle.dump(train_dataset, f)
+
+    with open("test.pkl", "wb") as f:
+        pickle.dump(test_dataset, f)
 
 
 
