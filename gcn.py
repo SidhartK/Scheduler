@@ -19,7 +19,7 @@ def import_model_class(module_name, class_name):
 
 # List of model classes to train
 model_classes = [
-    #("ral_model", "RAL", {"input_dim": 64, "output_dim": 16}), 
+    ("ral_model", "RAL", {"input_dim": 64, "output_dim": 16}), 
     ("gcn_baseline_model", "GCNBaseline", {"input_dim": 64, "hidden_dim": 16,"output_dim": 1})
 ]
 
