@@ -67,7 +67,7 @@ def generate_dataset(num_graphs, num_nodes_minmax, edge_prob_minmax, **kwargs):
         
         G = generate_dag(num_nodes, edge_prob)
         assign_labels(G, **kwargs)
-        #visualize_graph(G)
+        visualize_graph(G)
 
         graphs.append(G)
     
